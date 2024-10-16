@@ -1,0 +1,58 @@
+resources:
+  limits:
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+tolerations:
+  - key: node-role.kubernetes.io/master
+    operator: Exists
+    effect: NoSchedule
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+
+config:
+  clients:
+    - url: http://loki-gateway/loki/api/v1/push
+
+  snippets:
+    pipelineStages:
+      - cri: {}
+      #- json: {}
+
+serviceMonitor:
+  enabled: true
+  labels:
+    release: prometheus
+
+  prometheusRule:
+    enabled: true
+    additionalLabels:
+      release: prometheus
+    rules:
+      - alert: PromtailRequestErrors
+        expr: 100 * sum(rate(promtail_request_duration_seconds_count{status_code=~"5..|failed"}[1m])) by (namespace, job, route, instance) / sum(rate(promtail_request_duration_seconds_count[1m])) by (namespace, job, route, instance) > 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          description: |
+            The {{ $labels.job }} {{ $labels.route }} is experiencing
+            {{ printf "%.2f" $value }} errors.
+            VALUE = {{ $value }}
+            LABELS = {{ $labels }}
+          summary: Promtail request errors (instance {{ $labels.instance }})
+      - alert: PromtailRequestLatency
+        expr: histogram_quantile(0.99, sum(rate(promtail_request_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Promtail request latency (instance {{ $labels.instance }})
+          description: |
+            The {{ $labels.job }} {{ $labels.route }} is experiencing
+            {{ printf "%.2f" $value }}s 99th percentile latency.
+            VALUE = {{ $value }}
+            LABELS = {{ $labels }}

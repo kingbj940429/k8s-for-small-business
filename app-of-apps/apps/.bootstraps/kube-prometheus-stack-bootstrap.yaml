@@ -1,0 +1,48 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus
+  namespace: continuous-system
+spec:
+  project: default
+  destination:
+    namespace: monitoring-system
+    server: "https://kubernetes.default.svc"
+  sources:
+    #-- dashboards
+    - repoURL: git@github.com:kingbj940429/small-business-with-k8s.git
+      path: app-of-apps/apps/kube-prometheus-stack/dashboards
+      targetRevision: HEAD
+      directory:
+        recurse: true
+
+    #-- networks
+    - repoURL: git@github.com:kingbj940429/small-business-with-k8s.git
+      path: app-of-apps/apps/kube-prometheus-stack/networks
+      targetRevision: HEAD
+      directory:
+        recurse: true
+
+    - repoURL: git@github.com:kingbj940429/small-business-with-k8s.git
+      targetRevision: HEAD
+      ref: git_path
+
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: "61.2.0"
+      helm:
+        valueFiles:
+          - $git_path/app-of-apps/apps/kube-prometheus-stack/override-values.yaml
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 7m
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true

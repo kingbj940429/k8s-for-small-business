@@ -1,0 +1,292 @@
+configs:
+  params:
+    server.insecure: true
+  repositories:
+    gitops:
+      name: small-business-with-k8s
+      type: git
+      url: git@github.com:kingbj940429/small-business-with-k8s.git
+      sshPrivateKey: |
+        ...
+
+  cmp:
+    create: true
+    plugins:
+      #-- argocd-vault-plugin
+      avp:
+        allowConcurrency: true
+        init:
+          command: [ sh ]
+          args: [ -c, 'echo "AVP initializing..."' ]
+        discover:
+          find:
+            command:
+              - sh
+              - "-c"
+              - "find . -name '*.yaml' | xargs -I {} grep \"<path\\|avp\\.kubernetes\\.io\" {} | grep ."
+        generate:
+          command:
+            - argocd-vault-plugin
+            - generate
+            - "."
+        lockRepo: false
+      #-- argocd-vault-plugin-helm
+      avp-helm:
+        allowConcurrency: true
+        init:
+          command: [ sh ]
+          args: [ -c, 'echo "AVP for helm initializing.."' ]
+        discover:
+          find:
+            command:
+              - sh
+              - "-c"
+              - "find . -name 'Chart.yaml' && find . -name 'values*.yaml'"
+        generate:
+          command:
+            - sh
+            - "-c"
+            - |
+              helm template $ARGOCD_APP_NAME --include-crds -n $ARGOCD_APP_NAMESPACE $ARGOCD_ENV_HELM_ARGS . |
+              argocd-vault-plugin generate -
+        lockRepo: false
+
+crds:
+  keep: true
+
+################################################################################
+# Controller
+################################################################################
+controller:
+  replicas: 1
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      selector:
+        release: prometheus
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 512Mi
+
+################################################################################
+# dex
+################################################################################
+dex:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      selector:
+        release: prometheus
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 128Mi
+
+################################################################################
+# redis
+################################################################################
+redis-ha:
+  enabled: false
+
+redisSecretInit:
+  podLabels:
+    sidecar.istio.io/inject: "false"
+
+redis:
+  enabled: true
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 128Mi
+
+################################################################################
+# server
+################################################################################
+server:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      selector:
+        release: prometheus
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 512Mi
+  extensions:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        memory: 256Mi
+
+################################################################################
+# applicationSet
+################################################################################
+applicationSet:
+  replicas: 1
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      selector:
+        release: prometheus
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 512Mi
+
+################################################################################
+# repoServer
+################################################################################
+repoServer:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      selector:
+        release: prometheus
+
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::025066270378:role/ArgoCDIRSA
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1Gi
+    limits:
+      memory: 1Gi
+
+  extraContainers:
+    #-- argocd-vault-plugin
+    - name: avp
+      command: [/var/run/argocd/argocd-cmp-server]
+      image: registry.access.redhat.com/ubi8
+      env:
+        - name: AVP_TYPE
+          value: awssecretsmanager
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: 512Mi
+      volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        - mountPath: /tmp
+          name: tmp
+
+        # Register plugins into sidecar
+        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          subPath: avp.yaml
+          name: cmp-plugin
+
+        # Important: Mount tools into $PATH
+        - name: custom-tools
+          subPath: argocd-vault-plugin
+          mountPath: /usr/local/bin/argocd-vault-plugin
+
+    #-- argocd-vault-plugin-helm
+    - name: avp-helm
+      command: [/var/run/argocd/argocd-cmp-server]
+      image: registry.access.redhat.com/ubi8
+      env:
+        - name: AVP_TYPE
+          value: awssecretsmanager
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: 512Mi
+      volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        - mountPath: /tmp
+          name: tmp
+
+        # Register plugins into sidecar
+        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          subPath: avp-helm.yaml
+          name: cmp-plugin
+
+        # Important: Mount tools into $PATH
+        - name: custom-tools
+          subPath: argocd-vault-plugin
+          mountPath: /usr/local/bin/argocd-vault-plugin
+
+        - name: custom-tools
+          subPath: helm
+          mountPath: /usr/local/bin/helm
+
+  initContainers:
+    #-- argocd-vault-plugin
+    - name: download-tools
+      image: registry.access.redhat.com/ubi8
+      env:
+        - name: AVP_VERSION
+          value: 1.16.1
+        - name: HELM_VERSION
+          value: 3.14.0
+      command: [sh, -c]
+      args:
+        - >-
+          curl -L https://github.com/argoproj-labs/argocd-vault-plugin/releases/download/v$(AVP_VERSION)/argocd-vault-plugin_$(AVP_VERSION)_linux_amd64 -o argocd-vault-plugin &&
+          chmod +x argocd-vault-plugin &&
+          mv argocd-vault-plugin /custom-tools/
+
+          yum install -y openssl &&
+          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 &&
+          chmod 700 get_helm.sh &&
+          ./get_helm.sh -v $HELM_VERSION &&
+          mv $(command -v helm) /custom-tools/
+      volumeMounts:
+        - mountPath: /custom-tools
+          name: custom-tools
+
+  volumes:
+    - name: cmp-plugin
+      configMap:
+        name: argocd-cmp-cm
+
+    - name: custom-tools
+      emptyDir: {}

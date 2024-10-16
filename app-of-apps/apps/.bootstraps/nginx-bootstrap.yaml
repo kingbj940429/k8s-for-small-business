@@ -1,0 +1,49 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: nginx
+  namespace: continuous-system
+spec:
+  generators:
+    - list:
+        elements:
+          - targetRevision: 18.2.0
+  template:
+    metadata:
+      name: nginx
+      namespace: continuous-system
+    spec:
+      project: default
+      destination:
+        namespace: default
+        server: https://kubernetes.default.svc
+      sources:
+        - repoURL: git@github.com:kingbj940429/small-business-with-k8s.git
+          path: app-of-apps/apps/nginx/secrets
+          targetRevision: HEAD
+          plugin:
+            name: avp
+
+        - repoURL: git@github.com:kingbj940429/small-business-with-k8s.git
+          targetRevision: HEAD
+          ref: git_path
+
+        - repoURL: https://charts.bitnami.com/bitnami
+          chart: nginx
+          targetRevision: "{{targetRevision}}"
+          helm:
+            valueFiles:
+              - $git_path/app-of-apps/apps/nginx/override-values.yaml
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+        syncOptions:
+          - ServerSideApply=true
+          - PruneLast=true

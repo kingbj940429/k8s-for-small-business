@@ -1,0 +1,201 @@
+windowsMonitoring:
+  enabled: false
+
+kubeApiServer:
+  enabled: true
+
+kubelet:
+  enabled: true
+
+kubeControllerManager:
+  enabled: true
+
+kubeScheduler:
+  enabled: true
+
+coreDns:
+  enabled: true
+
+kubeEtcd:
+  enabled: true
+
+kubeProxy:
+  enabled: true
+
+kubeDns:
+  enabled: false
+
+fullnameOverride: prometheus
+
+################################################################################
+# Alertmanager
+################################################################################
+alertmanager:
+  enabled: true
+
+  alertmanagerSpec:
+    alertmanagerConfigSelector:
+      matchLabels:
+        release: alertmanager
+
+    alertmanagerConfigMatcherStrategy:
+      type: None
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 512Mi
+      limits:
+        memory: 512Mi
+
+
+################################################################################
+# Kube State Metrics
+################################################################################
+kube-state-metrics:
+  selfMonitor:
+    enabled: true
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 256Mi
+
+################################################################################
+# Grafana
+################################################################################
+grafana:
+  enabled: true
+
+  adminPassword: admin
+
+  forceDeployDatasources: true
+  forceDeployDashboards: true
+  defaultDashboardsTimezone: "Asia/Seoul"
+
+  resources:
+    requests:
+      cpu: 150m
+      memory: 512Mi
+    limits:
+      memory: 512Mi
+
+  serviceMonitor:
+    labels:
+      release: prometheus
+
+  persistence:
+    type: pvc
+    enabled: false
+    storageClassName: "nfs-sc"
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+
+  ## ref: http://docs.grafana.org/administration/provisioning/#datasources
+  additionalDataSources:
+    - name: Loki
+      orgId: 1
+      access: proxy
+      editable: false
+      jsonData:
+        tlsSkipVerify: true
+      uid: loki
+      type: loki
+      url: http://loki-gateway:80
+
+  sidecar:
+    resources:
+      limits:
+        memory: 128Mi
+      requests:
+        memory: 128Mi
+
+################################################################################
+# Prometheus Node Exporter
+################################################################################
+nodeExporter:
+  enabled: true
+
+prometheus-node-exporter:
+  fullnameOverride: "prometheus-node-exporter"
+
+  resources:
+    requests:
+      cpu: 25m
+      memory: 256Mi
+    limits:
+      memory: 256Mi
+
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: eks.amazonaws.com/compute-type
+                operator: NotIn
+                values:
+                  - fargate
+
+################################################################################
+# Prometheus Operator
+################################################################################
+prometheusOperator:
+  enabled: true
+
+  tls:
+    enabled: false
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 256Mi
+
+  admissionWebhooks:
+    enabled: false
+
+    certManager:
+      enabled: false
+
+    patch:
+      enabled: false
+
+    deployment:
+      enabled: false
+
+################################################################################
+# Prometheus
+################################################################################
+prometheus:
+  enabled: true
+
+  prometheusSpec:
+    retention: 3d
+    retentionSize: "1GB"
+
+    ruleSelectorNilUsesHelmValues: true
+    serviceMonitorSelectorNilUsesHelmValues: true
+    podMonitorSelectorNilUsesHelmValues: true
+    probeSelectorNilUsesHelmValues: true
+    scrapeConfigSelectorNilUsesHelmValues: true
+
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1024Mi
+      limits:
+        memory: 1024Mi
+
+    serviceMonitorSelector:
+      matchLabels:
+        release: prometheus
+
+  replicaCount: 1
+
+  priorityClassName: "system-cluster-critical"

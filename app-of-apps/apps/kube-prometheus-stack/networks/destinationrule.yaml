@@ -1,0 +1,9 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: prometheus-grafana
+  namespace: monitoring-system
+spec:
+  host: prometheus-grafana
+  subsets:
+    - name: stable

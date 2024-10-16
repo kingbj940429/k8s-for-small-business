@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: promtail
+  namespace: continuous-system
+spec:
+  generators:
+    - list:
+        elements:
+          - targetRevision: 6.15.4
+  template:
+    metadata:
+      name: promtail
+      namespace: continuous-system
+    spec:
+      project: default
+      destination:
+        namespace: monitoring-system
+        server: https://kubernetes.default.svc
+      sources:
+        - repoURL: git@github.com:kingbj940429/small-business-with-k8s.git
+          targetRevision: HEAD
+          ref: git_path
+
+        - repoURL: https://grafana.github.io/helm-charts
+          chart: promtail
+          targetRevision: "{{targetRevision}}"
+          helm:
+            valueFiles:
+              - $git_path/app-of-apps/apps/promtail/override-values.yaml
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+        syncOptions:
+          - ServerSideApply=false

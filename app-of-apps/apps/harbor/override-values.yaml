@@ -1,0 +1,255 @@
+################################################################################
+# Common
+################################################################################
+
+externalURL: https://harbor.kingbj0429.com
+
+existingSecretSecretKey: "harbor-credentials"
+existingSecretAdminPassword: "harbor-credentials"
+existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
+
+# debug, info, warning, error or fatal
+logLevel: warning
+
+expose:
+  type: clusterIP
+  tls:
+    enabled: false
+  clusterIP:
+    name: harbor
+    ports:
+      httpPort: 80
+      httpsPort: 443
+
+persistence:
+  enabled: false
+
+metrics:
+  enabled: true
+  core:
+    path: /metrics
+    port: 8001
+  registry:
+    path: /metrics
+    port: 8001
+  jobservice:
+    path: /metrics
+    port: 8001
+  exporter:
+    path: /metrics
+    port: 8001
+
+  serviceMonitor:
+    enabled: true
+    additionalLabels:
+      release: prometheus
+
+trace:
+  enabled: false
+
+cache:
+  enabled: false
+  expireHours: 24
+
+################################################################################
+# Nginx
+################################################################################
+nginx:
+  replicas: 1
+  priorityClassName: system-cluster-critical
+
+  podLabels:
+    sidecar.istio.io/inject: "false"
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 50m
+    limits:
+      memory: 256Mi
+      cpu: 50m
+
+################################################################################
+# Portal
+################################################################################
+portal:
+  replicas: 1
+  priorityClassName: system-cluster-critical
+
+  podLabels:
+    sidecar.istio.io/inject: "false"
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 50m
+    limits:
+      memory: 256Mi
+      cpu: 50m
+
+################################################################################
+# Core
+################################################################################
+core:
+  replicas: 1
+  priorityClassName: system-cluster-critical
+
+  podLabels:
+    sidecar.istio.io/inject: "false"
+
+  existingSecret: "harbor-credentials"
+
+  #-- reference - https://goharbor.io/docs/2.11.0/install-config/installation-prereqs/
+  resources:
+    requests:
+      memory: 4Gi
+      cpu: 1
+    limits:
+      memory: 4Gi
+
+################################################################################
+# JobService
+################################################################################
+jobservice:
+  replicas: 1
+  priorityClassName: system-cluster-critical
+
+  podLabels:
+    sidecar.istio.io/inject: "false"
+
+  maxJobWorkers: 10
+
+  existingSecret: "harbor-credentials"
+  existingSecretKey: JOBSERVICE_SECRET
+
+  notification:
+    # Maximum retry count for webhook job
+    # Increase or decrease the retry count when webhook job failed, pay attention that a high number of retries can put pressure on the webhook job queue
+    webhook_job_max_retry: 3
+    # HTTP client timeout for webhook job
+    # Increase the timeout if the webhook endpoint cannot respond to harbor within the specified timeout
+    webhook_job_http_client_timeout: 3 # in seconds
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 512Mi
+
+################################################################################
+# Registry
+################################################################################
+registry:
+  replicas: 1
+  priorityClassName: system-cluster-critical
+
+  registry:
+    resources:
+      requests:
+        memory: 1024Mi
+        cpu: 500m
+      limits:
+        memory: 1024Mi
+
+  controller:
+    resources:
+      requests:
+        memory: 64Mi
+        cpu: 25m
+      limits:
+        memory: 64Mi
+
+  podLabels:
+    sidecar.istio.io/inject: "false"
+
+  relativeurls: true
+
+  existingSecret: "harbor-credentials"
+  existingSecretKey: REGISTRY_HTTP_SECRET
+
+################################################################################
+# Trivy
+################################################################################
+trivy:
+  enabled: true
+  replicas: 1
+  priorityClassName: system-cluster-critical
+
+  podLabels:
+    sidecar.istio.io/inject: "false"
+
+  debugMode: false
+  vulnType: "os,library"
+  severity: "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+  ignoreUnfixed: false
+  insecure: true
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 256Mi
+
+################################################################################
+# Database
+################################################################################
+database:
+  type: internal
+
+  existingSecret: "harbor-credentials"
+
+  # The maximum number of connections in the idle connection pool per pod (core+exporter).
+  # If it <=0, no idle connections are retained.
+  maxIdleConns: 100
+
+  # The maximum number of open connections to the database per pod (core+exporter).
+  # If it <= 0, then there is no limit on the number of open connections.
+  # Note: the default number of connections is 1024 for harbor's postgres.
+  maxOpenConns: 1024
+
+################################################################################
+# Redis
+################################################################################
+redis:
+  type: internal
+
+  internal:
+    # # harborDatabaseIndex defaults to "0", but it can be configured to "6", this config is optional
+    # # cacheLayerDatabaseIndex defaults to "0", but it can be configured to "7", this config is optional
+    jobserviceDatabaseIndex: "1"
+    registryDatabaseIndex: "2"
+    trivyAdapterIndex: "5"
+    # harborDatabaseIndex: "6"
+    # cacheLayerDatabaseIndex: "7"
+
+    podLabels:
+      sidecar.istio.io/inject: "false"
+
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 50m
+      limits:
+        memory: 256Mi
+
+################################################################################
+# Exporter
+################################################################################
+exporter:
+  replicas: 1
+  priorityClassName: system-cluster-critical
+
+  podLabels:
+    sidecar.istio.io/inject: "false"
+
+  cacheDuration: 23
+  cacheCleanInterval: 14400
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 50m
+    limits:
+      memory: 256Mi

@@ -1,0 +1,64 @@
+global:
+  defaultPodDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+  proxy:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+
+telemetry:
+  enabled: false
+  v2:
+    enabled: true
+    metadataExchange:
+      wasmEnabled: false
+    prometheus:
+      enabled: true
+      wasmEnabled: false
+      configOverride:
+        gateway: {}
+        inboundSidecar: {}
+        outboundSidecar: {}
+
+pilot:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+  nodeSelector:
+    elbv2.target.io/discovery: "dev-eks"
+
+  tolerations:
+    - key: "k8s.kingbj0429.in/node-usage-type"
+      operator: "Equal"
+      value: "istio"
+      effect: "NoExecute"
+
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: "karpenter.k8s.aws/instance-family"
+                operator: In
+                values: [ "t3" ]
+              - key: "karpenter.k8s.aws/instance-size"
+                operator: In
+                values: [ "medium", "large" ]
+              - key: "topology.kubernetes.io/zone"
+                operator: In
+                values: [ "ap-northeast-2a", "ap-northeast-2b", "ap-northeast-2c", "ap-northeast-2d" ]
+              - key: "kubernetes.io/arch"
+                operator: In
+                values: [ "amd64" ]
+              - key: "karpenter.sh/capacity-type"
+                operator: In
+                values: [ "on-demand" ]

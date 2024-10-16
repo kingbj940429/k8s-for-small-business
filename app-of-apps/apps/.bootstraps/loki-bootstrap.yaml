@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: loki
+  namespace: continuous-system
+spec:
+  generators:
+    - list:
+        elements:
+          - targetRevision: 6.12.0
+  template:
+    metadata:
+      name: loki
+      namespace: continuous-system
+    spec:
+      project: defaults
+      destination:
+        namespace: monitoring-system
+        server: https://kubernetes.default.svc
+      sources:
+        - repoURL: git@github.com:kingbj940429/small-business-with-k8s.git
+          targetRevision: HEAD
+          ref: git_path
+
+        - repoURL: https://grafana.github.io/helm-charts
+          chart: loki
+          targetRevision: "{{targetRevision}}"
+          helm:
+            valueFiles:
+              - $git_path/app-of-apps/apps/loki/override-values.yaml
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        retry:
+          limit: 3
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+        syncOptions:
+          - ServerSideApply=false

@@ -1,0 +1,9 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: harbor
+  namespace: storage-system
+spec:
+  host: harbor
+  subsets:
+    - name: stable

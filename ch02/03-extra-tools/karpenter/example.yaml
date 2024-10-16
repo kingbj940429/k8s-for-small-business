@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:latest
+          ports:
+            - name: nginx-port
+              containerPort: 80
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 512Mi
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: "karpenter.k8s.aws/instance-family"
+                    operator: In
+                    values: [ "t3" ]
+                  - key: "karpenter.k8s.aws/instance-size"
+                    operator: In
+                    values: ["medium", "large"]
+                  - key: "topology.kubernetes.io/zone"
+                    operator: In
+                    values: ["ap-northeast-2a", "ap-northeast-2b", "ap-northeast-2c", "ap-northeast-2d"]
+                  - key: "kubernetes.io/arch"
+                    operator: In
+                    values: ["amd64"]
+                  - key: "karpenter.sh/capacity-type"
+                    operator: In
+                    values: ["on-demand"]

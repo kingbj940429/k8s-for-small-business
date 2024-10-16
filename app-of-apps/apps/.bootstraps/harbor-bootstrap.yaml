@@ -1,0 +1,55 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor
+  namespace: continuous-system
+spec:
+  project: default
+  destination:
+    namespace: storage-system
+    server: "https://kubernetes.default.svc"
+  sources:
+    #-- secrets
+    - repoURL: git@github.com:kingbj940429/small-business-with-k8s.git
+      path: app-of-apps/apps/harbor/secrets
+      targetRevision: HEAD
+      plugin:
+        name: avp
+
+    #-- serviceaccounts
+    - repoURL: git@github.com:kingbj940429/small-business-with-k8s.git
+      path: app-of-apps/apps/harbor/serviceaccounts
+      targetRevision: HEAD
+      directory:
+        recurse: true
+
+    #-- networks
+    - repoURL: git@github.com:kingbj940429/small-business-with-k8s.git
+      path: app-of-apps/apps/harbor/networks
+      targetRevision: HEAD
+      directory:
+        recurse: true
+
+    - repoURL: git@github.com:kingbj940429/small-business-with-k8s.git
+      targetRevision: HEAD
+      ref: git_path
+
+    - repoURL: https://helm.goharbor.io
+      chart: harbor
+      targetRevision: "1.15.0"
+      helm:
+        valueFiles:
+          - $git_path/app-of-apps/apps/harbor/override-values.yaml
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 10m
+    syncOptions:
+      - ServerSideApply=false
+      - CreateNamespace=true

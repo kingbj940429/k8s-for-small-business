@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ServiceAccount
+automountServiceAccountToken: true
+metadata:
+  name: my-app
+  namespace: default
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::025066270378:role/MyAppIRSA"
+---
+kind: Pod
+apiVersion: v1
+metadata:
+  name: my-app
+  namespace: default
+spec:
+  serviceAccountName: my-app
+  containers:
+    - name: aws
+      image: amazon/aws-cli
+      command: [ "/bin/sh" ]
+      args: [ "-c", "tail -f /dev/null" ]
+
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: "karpenter.k8s.aws/instance-family"
+                operator: In
+                values: [ "t3" ]
+              - key: "karpenter.k8s.aws/instance-size"
+                operator: In
+                values: ["medium", "large"]
+              - key: "topology.kubernetes.io/zone"
+                operator: In
+                values: ["ap-northeast-2a"]
+              - key: "kubernetes.io/arch"
+                operator: In
+                values: ["amd64"]
+              - key: "karpenter.sh/capacity-type"
+                operator: In
+                values: ["on-demand"]
