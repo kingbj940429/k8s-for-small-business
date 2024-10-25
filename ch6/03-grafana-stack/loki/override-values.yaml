@@ -1,0 +1,160 @@
+deploymentMode: SingleBinary
+
+global:
+  #-- https://github.com/grafana/loki/issues/7287#issuecomment-1282339134
+  dnsService: "kube-dns"
+
+memberlist:
+  service:
+    publishNotReadyAddresses: true
+
+################################################################################
+# Loki
+################################################################################
+loki:
+  auth_enabled: false
+
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: http-metrics
+    initialDelaySeconds: 30
+    timeoutSeconds: 1
+    periodSeconds: 10
+    failureThreshold: 30
+
+  commonConfig:
+    replication_factor: 1
+
+  schemaConfig:
+    configs:
+      - from: 2023-07-01
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+
+  compactor:
+    compaction_interval: 10m
+    delete_request_store: filesystem
+    retention_delete_delay: 2h
+    retention_delete_worker_count: 150
+    retention_enabled: true
+    working_directory: /var/loki/compactor
+
+  storage_config:
+    hedging:
+      at: "250ms"
+      max_per_second: 20
+      up_to: 3
+
+  storage:
+    type: filesystem
+    filesystem:
+      chunks_directory: /var/loki/chunks
+
+  memcached:
+    chunk_cache:
+      enabled: false
+    results_cache:
+      enabled: false
+
+resultsCache:
+  enabled: false
+
+memcachedExporter:
+  enabled: false
+
+################################################################################
+# SingleBinary
+################################################################################
+singleBinary:
+  replicas: 1
+
+  priorityClassName: system-cluster-critical
+
+  resources:
+    requests:
+      cpu: 150m
+      memory: 512Mi
+    limits:
+      memory: 512Mi
+
+  #-- https://github.com/grafana/loki/issues/4466#issuecomment-1078960849
+  extraVolumes:
+    - name: data
+      emptyDir: {}
+
+  extraVolumeMounts:
+    - name: data
+      mountPath: /var/loki
+
+  persistence:
+    enabled: false
+    size: 20Gi
+    storageClass: nfs-sc
+    enableStatefulSetAutoDeletePVC: true
+
+chunksCache:
+  enabled: false
+  # default is 500MB, with limited memory keep this smaller
+  writebackSizeLimit: 10MB
+
+################################################################################
+# Etc
+################################################################################
+test:
+  enabled: false
+
+lokiCanary:
+  enabled: false
+
+monitoring:
+  rules:
+    enabled: true
+    labels:
+      release: prometheus
+
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus
+
+  selfMonitoring:
+    enabled: false
+
+    grafanaAgent:
+      installOperator: false
+
+# Enable minio for storage
+minio:
+  enabled: false
+
+# Zero out replica counts of other deployment modes
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+
+ingester:
+  replicas: 0
+querier:
+  replicas: 0
+queryFrontend:
+  replicas: 0
+queryScheduler:
+  replicas: 0
+distributor:
+  replicas: 0
+compactor:
+  replicas: 0
+indexGateway:
+  replicas: 0
+bloomCompactor:
+  replicas: 0
+bloomGateway:
+  replicas: 0
